@@ -2,7 +2,7 @@
 #include "include/gpu_mem_util.h"
 #include <chrono>
 
-RdmaService::RdmaService(char* server_name, int memory_size) {
+RdmaService::RdmaService(char *server_name, int memory_size, char *buf) {
     memset(&config, 0, sizeof(config));
     config.tcp_port = 18515;
     config.ib_port = 1;
@@ -12,9 +12,9 @@ RdmaService::RdmaService(char* server_name, int memory_size) {
     memset(&res, 0, sizeof(res));
     res.sock = -1;
     if (server_name) {
-        res.buf = (char*)work_buffer_alloc(memory_size, 1, "5b:00.0");
+        res.buf = (char *)work_buffer_alloc(memory_size, 1, "5b:00.0");
     } else {
-        res.buf = (char*)work_buffer_alloc(memory_size, 0, nullptr);
+        res.buf = buf;
     }
 }
 
@@ -30,8 +30,6 @@ RdmaService::~RdmaService() {
     if (res.buf) {
         if (config.server_name) {
             work_buffer_free(res.buf, 1);
-        } else {
-            work_buffer_free(res.buf, 0);
         }
         res.buf = NULL;
     }
@@ -65,31 +63,6 @@ int RdmaService::resources_create() {
     int cq_size = 0;
     int num_devices;
     int rc = 0;
-    /* if client side */
-    if (config.server_name) {
-        res->sock = sock_connect(config.server_name, config.tcp_port);
-        if (res->sock < 0) {
-            fprintf(
-                stderr,
-                "failed to establish TCP connection to server %s, port %d\n",
-                config.server_name, config.tcp_port);
-            rc = -1;
-            goto resources_create_exit;
-        }
-    } else {
-        fprintf(stdout, "waiting on port %d for TCP connection\n",
-                config.tcp_port);
-        res->sock = sock_connect(NULL, config.tcp_port);
-        if (res->sock < 0) {
-            fprintf(
-                stderr,
-                "failed to establish TCP connection with client on port %d\n",
-                config.tcp_port);
-            rc = -1;
-            goto resources_create_exit;
-        }
-    }
-    fprintf(stdout, "TCP connection was established\n");
     fprintf(stdout, "searching for IB devices in host\n");
     /* get device names in the system */
     dev_list = ibv_get_device_list(&num_devices);
@@ -149,7 +122,7 @@ int RdmaService::resources_create() {
     }
     /* each side will send only one WR, so Completion Queue with 1 entry is
      * enough */
-    cq_size = 1;
+    cq_size = 10;
     res->cq = ibv_create_cq(res->ib_ctx, cq_size, NULL, NULL, 0);
     if (!res->cq) {
         fprintf(stderr, "failed to create CQ with %u entries\n", cq_size);
@@ -222,11 +195,6 @@ resources_create_exit:
             ibv_free_device_list(dev_list);
             dev_list = NULL;
         }
-        if (res->sock >= 0) {
-            if (close(res->sock))
-                fprintf(stderr, "failed to close socket\n");
-            res->sock = -1;
-        }
     }
     return rc;
 }
@@ -237,6 +205,31 @@ int RdmaService::connect_qp() {
     struct cm_con_data_t remote_con_data;
     struct cm_con_data_t tmp_con_data;
     int rc = 0;
+    /* if client side */
+    if (config.server_name) {
+        res->sock = sock_connect(config.server_name, config.tcp_port);
+        if (res->sock < 0) {
+            fprintf(
+                stderr,
+                "failed to establish TCP connection to server %s, port %d\n",
+                config.server_name, config.tcp_port);
+            rc = -1;
+            goto connect_qp_exit;
+        }
+    } else {
+        fprintf(stdout, "waiting on port %d for TCP connection\n",
+                config.tcp_port);
+        res->sock = sock_connect(NULL, config.tcp_port);
+        if (res->sock < 0) {
+            fprintf(
+                stderr,
+                "failed to establish TCP connection with client on port %d\n",
+                config.tcp_port);
+            rc = -1;
+            goto connect_qp_exit;
+        }
+    }
+    fprintf(stdout, "TCP connection was established\n");
     char temp_char;
     union ibv_gid my_gid;
     if (config.gid_idx >= 0) {
@@ -288,14 +281,14 @@ int RdmaService::connect_qp() {
         fprintf(stderr, "change QP state to INIT failed\n");
         goto connect_qp_exit;
     }
-    /* let the client post RR to be prepared for incoming messages */
-    if (config.server_name) {
-        rc = post_receive();
-        if (rc) {
-            fprintf(stderr, "failed to post RR\n");
-            goto connect_qp_exit;
-        }
-    }
+    // /* let the client post RR to be prepared for incoming messages */
+    // if (config.server_name) {
+    //     rc = post_receive();
+    //     if (rc) {
+    //         fprintf(stderr, "failed to post RR\n");
+    //         goto connect_qp_exit;
+    //     }
+    // }
     /* modify the QP to RTR */
     rc = modify_qp_to_rtr(res->qp, remote_con_data.qp_num, remote_con_data.lid,
                           remote_con_data.gid, config.ib_port, config.gid_idx);

@@ -23,9 +23,11 @@ endif()
 add_subdirectory(cuda)
 set (EXTRA_LIBS ${EXTRA_LIBS} gpu)
 
+set (CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CXX_LINK_EXECUTABLE} -ldl") 
+
 # file自定义搜索源文件，塞给集合SOURCES 
-file(GLOB INDEX_SERVER_SOURCES rdma/*.cpp gpu_utils/*.c)
-file(GLOB STORAGE_SERVER_SOURCES rdma/*.cpp gpu_utils/*.c)
+file(GLOB INDEX_SERVER_SOURCES rdma/*.cpp gpu_utils/*.c node/index_node.cpp)
+file(GLOB STORAGE_SERVER_SOURCES rdma/*.cpp gpu_utils/*.c node/storage_node.cpp)
 
 include_directories("/usr/local/include/")
 include_directories("/usr/local/cuda-12.5/targets/x86_64-linux/include")
@@ -41,8 +43,8 @@ add_executable(index_server index_server.cpp ${INDEX_SERVER_SOURCES})
 add_executable(storage_server storage_server.cpp ${STORAGE_SERVER_SOURCES})
 
 target_link_libraries(index_server PRIVATE ${EXTRA_LIBS}
-    ibverbs cuda gdrapi
+    ibverbs cuda
 )
 target_link_libraries(storage_server PRIVATE
-    ibverbs cuda gdrapi
+    ibverbs cuda rocksdb snappy z bz2 zstd lz4
 )

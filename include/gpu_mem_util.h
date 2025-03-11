@@ -12,15 +12,6 @@
 extern "C" {
 #endif
 
-struct cuda_memory_ctx {
-	int device_id;
-	char *device_bus_id;
-	CUdevice cuDevice;
-	CUcontext cuContext;
-	bool use_dmabuf;
-	bool use_data_direct;
-};
-
 /*
  * Memory allocation on CPU or GPU according to HAVE_CUDA pre-compile option and use_cuda flag
  *

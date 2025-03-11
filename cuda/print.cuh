@@ -1,1 +1,0 @@
-void print_gpu(const char* str);

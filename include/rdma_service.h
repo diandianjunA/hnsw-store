@@ -12,7 +12,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include <gdrapi.h>
 
 /* poll CQ timeout in millisec (2 seconds) */
 #define MAX_POLL_CQ_TIMEOUT 2000
@@ -62,7 +61,7 @@ struct resources {
 
 class RdmaService {
   public:
-    RdmaService(char* server_name, int memory_size);
+    RdmaService(char* server_name, int memory_size, char* buf = nullptr);
     ~RdmaService();
     int resources_create();
     int connect_qp();
@@ -71,7 +70,7 @@ class RdmaService {
     int poll_completion();
     char* get_buf() { return res.buf; }
 
-  private:
+//   private:
     struct config_t config;
     struct resources res;
     size_t memory_size;
